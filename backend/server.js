@@ -18,7 +18,24 @@ app.use(
 );
 app.use(express.json());
 
-// Routes
+let isConnected = false;
+async function connectDB() {
+  if (isConnected) return;
+  await mongoose.connect(process.env.MONGO_URI);
+  isConnected = true;
+  console.log("Connected to MongoDB");
+}
+
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    console.error("MongoDB connection error:", err.message);
+    res.status(500).json({ error: "Database connection failed" });
+  }
+});
+
 app.use("/api/projects", projectRoutes);
 app.use("/api/skills", skillRoutes);
 app.use("/api/contact", contactRoutes);
@@ -31,14 +48,15 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "ok" });
 });
 
-// Connect to MongoDB, then start the server
-mongoose
-  .connect(process.env.MONGO_URI)
-  .then(() => {
-    console.log("Connected to MongoDB");
-    app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-  })
-  .catch((err) => {
-    console.error("MongoDB connection error:", err.message);
-    process.exit(1);
-  });
+if (!process.env.VERCEL) {
+  connectDB()
+    .then(() => {
+      app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+    })
+    .catch((err) => {
+      console.error("MongoDB connection error:", err.message);
+      process.exit(1);
+    });
+}
+
+module.exports = app;
